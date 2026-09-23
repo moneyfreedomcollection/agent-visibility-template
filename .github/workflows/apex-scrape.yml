@@ -1,0 +1,54 @@
+name: Apex Competitor Scraper — Oct 3 Launch
+
+on:
+  schedule:
+    # Fires Oct 3 at 04:05 UTC = 12:05 AM ET
+    - cron: '5 4 3 10 *'
+  workflow_dispatch:  # Also allows manual trigger
+
+jobs:
+  apex-scrape:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r apex/requirements.txt
+
+      - name: Create output directory
+        run: mkdir -p apex/output
+
+      - name: Step 1 — Scrape competitor city pages
+        run: python apex/apex_scrape_cities.py
+
+      - name: Step 2 — Scrape competitor copy patterns
+        run: python apex/apex_scrape_copy.py
+
+      - name: Step 3 — Generate Nova microsite build queue
+        run: python apex/apex_build_nova_queue.py
+
+      - name: Commit output files back to repo
+        run: |
+          git config user.name "The Maestro"
+          git config user.email "ronniewashingtonai@gmail.com"
+          git add apex/output/
+          git diff --staged --quiet || git commit -m "Apex scrape complete — $(date -u '+%Y-%m-%d %H:%M UTC') — cities + copy + Nova queue"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Print summary
+        run: |
+          echo "=== APEX SCRAPE COMPLETE ==="
+          echo "City list:"
+          head -20 apex/output/confirmed_cities_build_list.csv
+          echo "Nova queue size:"
+          wc -l apex/output/nova_microsite_build_queue.csv
